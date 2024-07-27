@@ -22,14 +22,14 @@ camera_intrinsics = {
             'cy': 360.0   # Optical center in y direction
         }
 
-radar_depth_image = None
+bridge = CvBridge()
 
 class DepthToPointCloud:
     def __init__(self):
         rospy.init_node('depth_to_pointcloud', anonymous=True)
         rate = rospy.Rate(30)
 
-        self.bridge = CvBridge()
+        self.bridge = bridge
         
         self.camera_intrinsics = camera_intrinsics
 
@@ -71,8 +71,9 @@ class DepthToPointCloud:
 
             for result in self.results:
                 if result.ready():
-                    point_cloud = result.get()
+                    point_cloud, radar_depth_image = result.get()
                     self.point_cloud_pub.publish(point_cloud)
+                    self.radar_depth_pub.publish(radar_depth_image)
                     self.results.remove(result)
 
     def flow_image_callback(self, msg):
@@ -100,7 +101,7 @@ class DepthToPointCloud:
         #point_cloud = self.convert_depth_image_to_point_cloud(depth_image, msg.header.stamp)
 
         #self.point_cloud_pub.publish(point_cloud)
-        self.publish_radar_depth_image(msg.header)
+        
 
     def odom_callback(self, msg):
         if not self.odom_queue.full():
@@ -125,7 +126,8 @@ class DepthToPointCloud:
         target_img[mask] = 0#np.zeros(target_img)
 
         return target_img
-
+    
+    """
     def publish_radar_depth_image(self, header):
         try:
             if radar_depth_image is not None:
@@ -134,6 +136,7 @@ class DepthToPointCloud:
                 self.radar_depth_pub.publish(radar_depth_image_msg)
         except CvBridgeError as e:
             rospy.logerr("CvBridge Error: {0}".format(e))
+    """
 
 def convert_depth_image_to_point_cloud(depth_image, odom):
         points = []
@@ -178,6 +181,9 @@ def convert_depth_image_to_point_cloud(depth_image, odom):
         )
 
         radar_depth_image[cp.isinf(radar_depth_image)] = 0  # replace inf values with 0
+
+        radar_depth_image_msg = bridge.cv2_to_imgmsg(cp.asnumpy(radar_depth_image), encoding="32FC1")
+        radar_depth_image_msg.header = rospy.Header(None,odom.header.stamp,odom.header.frame_id)
         
 
         # **lidar points**
@@ -241,9 +247,9 @@ def convert_depth_image_to_point_cloud(depth_image, odom):
         header.stamp = odom.header.stamp
         header.frame_id = odom.header.frame_id #"map"
 
-        point_cloud = pc2.create_cloud_xyz32(header, points)
+        point_cloud_msg = pc2.create_cloud_xyz32(header, points)
 
-        return point_cloud
+        return point_cloud_msg, radar_depth_image_msg
 
 
 def quaternion_to_rotation_matrix( q):
