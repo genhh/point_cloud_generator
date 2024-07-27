@@ -1,0 +1,8 @@
+<launch>
+  <include file="$(find rt_of_low_high_res_event_cameras)/launch/davis346_replay2.launch" />
+
+  <node name="point_cloud_generator" pkg="point_cloud_generator" type="main_gpu.py" output="screen" />
+  <!--
+  <node name="point_cloud_generator_gpu" pkg="point_cloud_generator" type="main_gpu.py" output="screen" />
+  -->
+</launch>
