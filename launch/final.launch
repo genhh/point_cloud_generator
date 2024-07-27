@@ -5,4 +5,9 @@
   <!--
   <node name="point_cloud_generator_gpu" pkg="point_cloud_generator" type="main_gpu.py" output="screen" />
   -->
+  
+  <!--
+  <node name="save_img" pkg="point_cloud_generator" type="image_saver.py">  
+        <param name="save_dir" value="/home/ubuntu/imgdata" />  
+  </node>-->
 </launch>

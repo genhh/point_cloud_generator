@@ -24,5 +24,8 @@ cd ~/catkin_ws/src
 git clone https://github.com/genhh/.git
 catkin build point_cloud_generator
 source ../devel/setup.bash
-roslaunch point_cloud_generator final.launch
+roslaunch point_cloud_generator final.launch 
+
+rosrun point_cloud_generator image_saver.py # when you want to save the img from topic, press 's'
 ```
+
