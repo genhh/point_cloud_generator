@@ -19,8 +19,8 @@ odomTopic = '/Odometry_map'
 camera_intrinsics = {
             'fx': 420.836,  # Focal length in x direction
             'fy': 420.836,  # Focal length in y direction
-            'cx': 640.0,  # Optical center in x direction
-            'cy': 360.0   # Optical center in y direction
+            'cx': 424.0,  # Optical center in x direction
+            'cy': 240.0   # Optical center in y direction
         }
 grid_size = 2
 
@@ -40,7 +40,7 @@ class DepthToPointCloud:
         rospy.Subscriber('/rt_of_low_high_res_event_cameras/optical_flow', Image, self.flow_image_callback)
         
         self.point_cloud_pub = rospy.Publisher('/point_cloud', PointCloud2, queue_size=1)
-        self.radar_depth_pub = rospy.Publisher('/depth_completion_image', Image, queue_size=1)
+        #self.radar_depth_pub = rospy.Publisher('/depth_completion_image', Image, queue_size=1)
         self.fliter_depth_pub = rospy.Publisher('/fliter_depth', Image, queue_size=1)
 
         self.odom = None
@@ -87,6 +87,7 @@ class DepthToPointCloud:
     def depth_image_callback(self, msg):
         try:
             depth_image = self.bridge.imgmsg_to_cv2(msg, "16UC1")
+            #print(depth_image.shape)
             #height, width = depth_image.shape
             #mask = generate_horizontal_grid_mask(height, width, grid_size)
             #radar_depth_image = cp.copy(depth_image)
@@ -102,8 +103,9 @@ class DepthToPointCloud:
             rospy.logerr("CvBridge Error: {0}".format(e))
             return
         
-        if self.flow_image is not None:
+        if self.flow_image is not None :
             # Here you can publish or save the masked_image as needed
+            
             masked_img = self.apply_flow_mask(depth_image, self.flow_image)
             masked_image_msg = bridge.cv2_to_imgmsg(masked_img, encoding="16UC1")
             masked_image_msg.header = rospy.Header()
@@ -123,26 +125,32 @@ class DepthToPointCloud:
 
     def apply_flow_mask(self, target_img, flow_img):
         # Resize flow image if necessary
-        if flow_img.shape[:2] != target_img.shape[:2]:
-            flow_img = cv2.resize(flow_img, (target_img.shape[1], target_img.shape[0]), interpolation=cv2.INTER_LINEAR)
+        #if flow_img.shape[:2] != target_img.shape[:2]:
+        #    flow_img = cv2.resize(flow_img, (target_img.shape[1], target_img.shape[0]), interpolation=cv2.INTER_LINEAR)
         
+        if flow_img.shape[:2] != target_img.shape[:2]:
+            target_img = cv2.resize(target_img, (flow_img.shape[1], flow_img.shape[0]), interpolation=cv2.INTER_LINEAR)
+
+        #print(flow_img.shape)
         # Create a mask where flow values are 0; D435i minz is 0.105m
         magnitude, angle = cv2.cartToPolar(flow_img[..., 0], flow_img[..., 1])
         
         # Create a mask where flow values are 0 or x and y direction ratios are not close to 1
         mask_zero_flow = (magnitude == 0)
-        ratio_x_y = np.abs(flow_img[..., 0] / (flow_img[..., 1] + 1e-10))  # Add small value to avoid division by zero
-        mask1 = flow_img[..., 0]==0
-        mask2 = flow_img[..., 1]==0
-        mask3 = target_img > (65535//8)
-        mask_test = mask1 | mask2 | mask3
-        mask_ratio = (ratio_x_y > 2) | (ratio_x_y < 0.5)
+        #ratio_x_y = np.abs(flow_img[..., 0] / (flow_img[..., 1] + 1e-10))  # Add small value to avoid division by zero
+        #mask1 = flow_img[..., 0]==0
+        #mask2 = flow_img[..., 1]==0
+        mask3 = target_img > (65535//10)
+        mask_test = mask_zero_flow | mask3
+        #mask_ratio = (ratio_x_y > 2) | (ratio_x_y < 0.5)
         
-        mask = mask_zero_flow | mask_ratio
+        #mask = mask_zero_flow | mask_ratio
         
         # Apply the mask to the target image
+        #print(target_img.shape)
         target_img[mask_test] = 0#np.zeros(target_img)
-        target_img = cv2.medianBlur(target_img,3)
+        #print(target_img.shape)
+        #target_img = cv2.medianBlur(target_img,3)
 
         return target_img
     

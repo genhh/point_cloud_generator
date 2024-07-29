@@ -4,7 +4,7 @@ a ros node to generator point cloud by depth and odom, which can fliter static o
 ## environment
 ubuntu18.04, catkin build tools, [cv_bridge3](https://github.com/ros-perception/vision_opencv) for melodic, ROS, cupy, pcl etc.
 
-if you wants optical flow mask ,you need to download [this](https://github.com/heudiasyc/rt_of_low_high_res_event_cameras.git)
+if you wants optical flow mask , you need to download [this](https://github.com/heudiasyc/rt_of_low_high_res_event_cameras.git)
 
 ## func
 
@@ -13,6 +13,7 @@ aid to fliter the depth which is static
 
 ### generator pointClouds by depth and odom
 input: depth image, odom msg
+
 output: point clouds
 
 contains two version --> cpu/gpu
@@ -34,12 +35,11 @@ source ../devel/setup.bash
 ```
 
 ## to do list
-save img func
-add color func
-lidar scan depth img seems some problem
+A bug when start_save quit, the terminal can't work. You need reopen a new terminal, then it can work again.
 
 ## reference
 depth completion part from [this](https://github.com/kujason/ip_basic.git)
 
+optical flow part from [this](https://github.com/heudiasyc/rt_of_low_high_res_event_cameras.git)
 
 

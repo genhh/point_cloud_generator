@@ -9,7 +9,7 @@ import numpy as np
 import termios
 import sys
 import tty
-
+import concurrent.futures
 
 class ImageSaver:
     def __init__(self):
@@ -22,7 +22,7 @@ class ImageSaver:
             '/dvs_render',#8uc3
             #'/radar_depth_image',#16uc1
             '/D435i/depth/image_rect_raw',
-            'rt_of_low_high_res_event_cameras/optical_flow',
+            #'rt_of_low_high_res_event_cameras/optical_flow',
             '/fliter_depth'
         ]
         
@@ -37,6 +37,9 @@ class ImageSaver:
             os.makedirs(self.save_dir)
         
         rospy.Timer(rospy.Duration(0.1), self.check_key_press)
+        
+        
+
 
     def check_key_press(self, event):
         if self.is_key_pressed():
@@ -65,22 +68,27 @@ class ImageSaver:
             rospy.logerr("CvBridge Error: {0}".format(e))
 
     def save_images(self):
-        timestamp = rospy.Time.now().to_nsec()
-        for topic, image in self.images.items():
-            topic_name = topic.replace('/', '_')
-            if topic=='rt_of_low_high_res_event_cameras/optical_flow':
-                filename = os.path.join(self.save_dir, f"{topic_name}_{timestamp}.npy")
-                np.save(filename,image)
-                continue
+        with concurrent.futures.ProcessPoolExecutor(max_workers=2) as executor:
+            timestamp = rospy.Time.now().to_nsec()
             
-            filename = os.path.join(self.save_dir, f"{topic_name}_{timestamp}.png")
-            if "depth" in topic:
-                image = cv2.applyColorMap(image,cv2.COLORMAP_JET)
+            for topic, image in self.images.items():
+                topic_name = topic.replace('/', '_')
+                if topic=='rt_of_low_high_res_event_cameras/optical_flow':
+                    filename = os.path.join(self.save_dir, f"{topic_name}_{timestamp}.npy")
+                    np.save(filename,image)
+                    continue
                 
-            cv2.imwrite(filename, image)
-                #cv2.imwrite(filename, image.astype(np.uint16))
-            rospy.loginfo(f"Saved image: {filename}")
+                filename = os.path.join(self.save_dir, f"{topic_name}_{timestamp}.png")
+                if "depth" in topic:
+                    image = cv2.applyColorMap(image,cv2.COLORMAP_JET)
+                
+                executor.submit(save_img,filename,image)    
+                
 
+def save_img(filename,image):
+    cv2.imwrite(filename, image)
+    #cv2.imwrite(filename, image.astype(np.uint16))
+    rospy.loginfo(f"Saved image: {filename}")
 
 if __name__ == '__main__':
     rospy.init_node('image_saver', anonymous=True)
