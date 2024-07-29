@@ -13,6 +13,7 @@ import cupy as cp
 from multiprocessing import Pool, Queue
 
 
+
 odomTopic = '/Odometry_map'
 
 camera_intrinsics = {
@@ -21,6 +22,7 @@ camera_intrinsics = {
             'cx': 640.0,  # Optical center in x direction
             'cy': 360.0   # Optical center in y direction
         }
+grid_size = 2
 
 bridge = CvBridge()
 
@@ -38,7 +40,8 @@ class DepthToPointCloud:
         rospy.Subscriber('/rt_of_low_high_res_event_cameras/optical_flow', Image, self.flow_image_callback)
         
         self.point_cloud_pub = rospy.Publisher('/point_cloud', PointCloud2, queue_size=1)
-        self.radar_depth_pub = rospy.Publisher('/radar_depth_image', Image, queue_size=1)
+        self.radar_depth_pub = rospy.Publisher('/depth_completion_image', Image, queue_size=1)
+        self.fliter_depth_pub = rospy.Publisher('/fliter_depth', Image, queue_size=1)
 
         self.odom = None
         self.flow_image = None
@@ -71,9 +74,8 @@ class DepthToPointCloud:
 
             for result in self.results:
                 if result.ready():
-                    point_cloud, radar_depth_image = result.get()
+                    point_cloud= result.get()
                     self.point_cloud_pub.publish(point_cloud)
-                    self.radar_depth_pub.publish(radar_depth_image)
                     self.results.remove(result)
 
     def flow_image_callback(self, msg):
@@ -85,6 +87,15 @@ class DepthToPointCloud:
     def depth_image_callback(self, msg):
         try:
             depth_image = self.bridge.imgmsg_to_cv2(msg, "16UC1")
+            #height, width = depth_image.shape
+            #mask = generate_horizontal_grid_mask(height, width, grid_size)
+            #radar_depth_image = cp.copy(depth_image)
+            #radar_depth_image[mask] = 0
+
+            #radar_depth_image_msg = bridge.cv2_to_imgmsg(cp.asnumpy(radar_depth_image), encoding="16UC1")
+            #radar_depth_image_msg.header = rospy.Header()
+            #self.radar_depth_pub.publish(radar_depth_image_msg)
+            
             if not self.depth_image_queue.full():
                 self.depth_image_queue.put(depth_image)
         except CvBridgeError as e:
@@ -92,15 +103,18 @@ class DepthToPointCloud:
             return
         
         if self.flow_image is not None:
-            None
-            #depth_image = self.apply_flow_mask(depth_image, self.flow_image)
             # Here you can publish or save the masked_image as needed
-            # Example: self.publish_masked_image(masked_image)
+            masked_img = self.apply_flow_mask(depth_image, self.flow_image)
+            masked_image_msg = bridge.cv2_to_imgmsg(masked_img, encoding="16UC1")
+            masked_image_msg.header = rospy.Header()
+            self.fliter_depth_pub.publish(masked_image_msg)
+            
         
         #radar_depth_image = self.convert_depth_to_radar(depth_image)
         #point_cloud = self.convert_depth_image_to_point_cloud(depth_image, msg.header.stamp)
 
         #self.point_cloud_pub.publish(point_cloud)
+        
         
 
     def odom_callback(self, msg):
@@ -118,12 +132,17 @@ class DepthToPointCloud:
         # Create a mask where flow values are 0 or x and y direction ratios are not close to 1
         mask_zero_flow = (magnitude == 0)
         ratio_x_y = np.abs(flow_img[..., 0] / (flow_img[..., 1] + 1e-10))  # Add small value to avoid division by zero
-        mask_ratio = (ratio_x_y > 1.2) | (ratio_x_y < 0.8)
+        mask1 = flow_img[..., 0]==0
+        mask2 = flow_img[..., 1]==0
+        mask3 = target_img > (65535//8)
+        mask_test = mask1 | mask2 | mask3
+        mask_ratio = (ratio_x_y > 2) | (ratio_x_y < 0.5)
         
         mask = mask_zero_flow | mask_ratio
         
         # Apply the mask to the target image
-        target_img[mask] = 0#np.zeros(target_img)
+        target_img[mask_test] = 0#np.zeros(target_img)
+        target_img = cv2.medianBlur(target_img,3)
 
         return target_img
     
@@ -139,7 +158,7 @@ class DepthToPointCloud:
     """
 
 def convert_depth_image_to_point_cloud(depth_image, odom):
-        points = []
+        #points = []
 
         fx = camera_intrinsics['fx']
         fy = camera_intrinsics['fy']
@@ -158,6 +177,7 @@ def convert_depth_image_to_point_cloud(depth_image, odom):
         y = (v - cy) * z / fy
 
         # lidar depth
+        """
         angle_resolution = 360.0 / width
         distance_resolution = 0.01  # example: 1 cm per pixel
 
@@ -181,10 +201,7 @@ def convert_depth_image_to_point_cloud(depth_image, odom):
         )
 
         radar_depth_image[cp.isinf(radar_depth_image)] = 0  # replace inf values with 0
-
-        radar_depth_image_msg = bridge.cv2_to_imgmsg(cp.asnumpy(radar_depth_image), encoding="32FC1")
-        radar_depth_image_msg.header = rospy.Header(None,odom.header.stamp,odom.header.frame_id)
-        
+        """     
 
         # **lidar points**
         valid = (z > 0)
@@ -249,7 +266,7 @@ def convert_depth_image_to_point_cloud(depth_image, odom):
 
         point_cloud_msg = pc2.create_cloud_xyz32(header, points)
 
-        return point_cloud_msg, radar_depth_image_msg
+        return point_cloud_msg
 
 
 def quaternion_to_rotation_matrix( q):
@@ -260,6 +277,24 @@ def quaternion_to_rotation_matrix( q):
             [2*x*z - 2*y*w, 2*y*z + 2*x*w, 1 - 2*x**2 - 2*y**2]
         ])
 
+def generate_horizontal_grid_mask(height, width, grid_size):
+    """
+    Generates a horizontal grid mask of the specified height and width, with each grid cell having a size of grid_size.
+    
+    Args:
+        height (int): Height of the mask.
+        width (int): Width of the mask.
+        grid_size (int): Size of each grid cell.
+    
+    Returns:
+        np.ndarray: The generated mask array.
+    """
+    mask = np.ones((height, width), dtype=bool)
+    grid_size2 = 10
+    for y in range(0, height, grid_size2):
+        mask[y:y + grid_size // 2, :] = False
+    
+    return mask
 
 if __name__ == '__main__':
     try:

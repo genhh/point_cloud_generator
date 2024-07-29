@@ -24,8 +24,22 @@ cd ~/catkin_ws/src
 git clone https://github.com/genhh/.git
 catkin build point_cloud_generator
 source ../devel/setup.bash
-roslaunch point_cloud_generator final.launch 
+# before start, source cv_bridge workspace
+# roslaunch point_cloud_generator final.launch 
+./start.sh
 
-rosrun point_cloud_generator image_saver.py # when you want to save the img from topic, press 's'
+# need to open new window
+#rosrun point_cloud_generator image_saver.py # when you want to save the img from topic, press 's'
+./start_save.sh
 ```
+
+## to do list
+save img func
+add color func
+lidar scan depth img seems some problem
+
+## reference
+depth completion part from [this](https://github.com/kujason/ip_basic.git)
+
+
 
