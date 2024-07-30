@@ -31,7 +31,11 @@ source ../devel/setup.bash
 
 # need to open new window
 #rosrun point_cloud_generator image_saver.py # when you want to save the img from topic, press 's'
+sudo apt-get install ros-melodic-ros-numpy
+pip3 install open3d
 ./start_save.sh
+# show pcd file
+pcl_viewer xxx.pcd
 ```
 
 ## to do list
@@ -41,5 +45,7 @@ A bug when start_save quit, the terminal can't work. You need reopen a new termi
 depth completion part from [this](https://github.com/kujason/ip_basic.git)
 
 optical flow part from [this](https://github.com/heudiasyc/rt_of_low_high_res_event_cameras.git)
+
+python-pcl error [solution](https://askubuntu.com/questions/1160219/how-to-make-pcl-library-and-python-pcl-run-on-ubuntu-18-04-2)
 
 

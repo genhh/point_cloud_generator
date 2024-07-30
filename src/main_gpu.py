@@ -39,7 +39,7 @@ class DepthToPointCloud:
         rospy.Subscriber("/D435i/depth/image_rect_raw", Image, self.depth_image_callback)
         rospy.Subscriber('/rt_of_low_high_res_event_cameras/optical_flow', Image, self.flow_image_callback)
         
-        self.point_cloud_pub = rospy.Publisher('/point_cloud', PointCloud2, queue_size=1)
+        self.point_cloud_pub = rospy.Publisher('/point_cloud', PointCloud2, queue_size=0)
         #self.radar_depth_pub = rospy.Publisher('/depth_completion_image', Image, queue_size=1)
         self.fliter_depth_pub = rospy.Publisher('/fliter_depth', Image, queue_size=1)
 
@@ -96,7 +96,7 @@ class DepthToPointCloud:
             #radar_depth_image_msg = bridge.cv2_to_imgmsg(cp.asnumpy(radar_depth_image), encoding="16UC1")
             #radar_depth_image_msg.header = rospy.Header()
             #self.radar_depth_pub.publish(radar_depth_image_msg)
-            
+            #print(np.max(depth_image))
             if not self.depth_image_queue.full():
                 self.depth_image_queue.put(depth_image)
         except CvBridgeError as e:
@@ -167,11 +167,14 @@ class DepthToPointCloud:
 
 def convert_depth_image_to_point_cloud(depth_image, odom):
         #points = []
-
+        scale = 2
         fx = camera_intrinsics['fx']
         fy = camera_intrinsics['fy']
         cx = camera_intrinsics['cx']
         cy = camera_intrinsics['cy']
+
+        # downsample, scale lager, publish hz faster
+        depth_image = depth_image[::scale, ::scale]
 
         height, width = depth_image.shape
         u = cp.arange(width, dtype=cp.float32)
@@ -181,8 +184,8 @@ def convert_depth_image_to_point_cloud(depth_image, odom):
         depth_image_gpu = cp.asarray(depth_image, dtype=cp.float32) / 1000.0  # Convert to meters
 
         z = depth_image_gpu
-        x = (u - cx) * z / fx
-        y = (v - cy) * z / fy
+        x = (u - cx/scale) * z / fx
+        y = (v - cy/scale) * z / fy
 
         # lidar depth
         """
