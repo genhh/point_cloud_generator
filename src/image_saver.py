@@ -23,19 +23,20 @@ class ImageSaver:
         self.bridge = CvBridge()
         
         self.image_topics = [
-            '/rt_of_low_high_res_event_cameras/optical_flow_viz',
-            '/dvs_render',#8uc3
+            #'/rt_of_low_high_res_event_cameras/optical_flow_viz',
+            #'/dvs_render',#8uc3
             #'/radar_depth_image',#16uc1
-            '/D435i/depth/image_rect_raw',
+            #'/D435i/depth/image_rect_raw',
             #'rt_of_low_high_res_event_cameras/optical_flow',
-            '/fliter_depth',
-            '/point_cloud'
+            #'/fliter_depth',
+            '/point_cloud',
+            '/fliter_cloud'
         ]
         
         self.images = {}
         
         for topic in self.image_topics:
-            if topic == '/point_cloud':
+            if 'cloud' in topic:
                 rospy.Subscriber(topic, PointCloud2, self.image_callback, topic)
                 continue    
             rospy.Subscriber(topic, Image, self.image_callback, topic)
@@ -70,10 +71,10 @@ class ImageSaver:
         try:
             if(topic=='rt_of_low_high_res_event_cameras/optical_flow'):
                 cv_image = self.bridge.imgmsg_to_cv2(msg, "16UC2")
-            elif topic == '/point_cloud':
+            elif 'cloud' in topic:
                 cv_image = ros_numpy.numpify(msg)
             else:
-                cv_image = self.bridge.imgmsg_to_cv2(msg, "8UC1" if "depth" in topic else "8UC3")
+                cv_image = self.bridge.imgmsg_to_cv2(msg, "16UC1" if "depth" in topic else "8UC3")
             self.images[topic] = cv_image
         except CvBridgeError as e:
             rospy.logerr("CvBridge Error: {0}".format(e))
@@ -89,7 +90,7 @@ class ImageSaver:
                     np.save(filename,image)
                     continue
                 
-                if topic=='/point_cloud':
+                if 'cloud' in topic:
                     filename = os.path.join(self.save_dir, f"{topic_name}_{timestamp}.pcd")
                     executor.submit(save_points,filename,image)
                     continue
@@ -101,6 +102,7 @@ class ImageSaver:
                 
 
 def save_img(filename,image):
+    """
     if "depth" in filename:
         try:
             image = np.float32(image / 256.0)# is necessary?
@@ -110,9 +112,11 @@ def save_img(filename,image):
             image = cv2.applyColorMap(image,cv2.COLORMAP_JET)
         except BaseException as e:
             print("finish fill2",e)
-            
+    """     
+    #cv2.imwrite(filename, image.astype(np.uint8))
+    if "fliter_depth" in filename:
+        image = cv2.normalize(image,None,0,65535,cv2.NORM_MINMAX)
     cv2.imwrite(filename, image)
-    #cv2.imwrite(filename, image.astype(np.uint16))
     rospy.loginfo(f"Saved image: {filename}")
 
 def save_points(filename,pc):
@@ -135,6 +139,7 @@ def save_points(filename,pc):
         # 创建 Open3D 点云对象
         cloud = o3d.geometry.PointCloud()
         cloud.points = o3d.utility.Vector3dVector(points)
+        cloud.paint_uniform_color([1,1,1])
         
 
         # 保存点云为 PCD 文件
